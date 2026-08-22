@@ -21,6 +21,9 @@
     "agent",
     "delegation"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "pi": {
     "extensions": [
       "./index.ts"
