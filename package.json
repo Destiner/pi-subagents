@@ -1,6 +1,6 @@
 {
   "name": "@destiner/pi-subagents",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Subagents for pi: delegate by intelligence level, and let your settings decide which model runs it",
   "type": "module",
   "license": "MIT",
