@@ -12,7 +12,7 @@ and you never re-teach it your model preferences.
 pi install npm:@destiner/pi-subagents
 ```
 
-The extension registers a single tool, `Agent`. It won't load alongside another
+The extension registers a single tool, `agent`. It won't load alongside another
 extension that registers a tool of the same name — remove the other one first.
 
 ## Configure
@@ -53,7 +53,7 @@ error, not a fallback.
 ## Use
 
 ```
-Agent({
+agent({
   description: "audit auth flow",
   intelligence: "medium",
   prompt: "…everything the subagent needs to know…"
@@ -102,7 +102,7 @@ token by token.
 
 No agent types or roles, no agent files, no background runs, no steering, no
 turn limits, no worktree isolation, no context inheritance. Subagents get the
-same tools as the parent minus `Agent` itself, which is also the whole of the
+same tools as the parent minus `agent` itself, which is also the whole of the
 recursion guard. If the parent aborts, its subagents abort.
 
 Two consequences worth knowing. The subagent inherits every extension and MCP

@@ -15,7 +15,7 @@ import {
   type Intelligence,
 } from "./types.ts";
 
-const TOOL_NAME = "Agent";
+const TOOL_NAME = "agent";
 
 const DESCRIPTION = `Delegate a self-contained task to a subagent with its own context window.
 
