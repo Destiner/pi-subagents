@@ -7,6 +7,9 @@ import { test } from "node:test";
 import { readConfig, resolveTarget, splitModelRef } from "../config.ts";
 import type { SubagentsConfig } from "../types.ts";
 
+// readConfig merges global settings; keep the user's real ones out of the assertions.
+process.env.PI_CODING_AGENT_DIR = mkdtempSync(join(tmpdir(), "pi-agent-"));
+
 const config: SubagentsConfig = {
   "pi-claude/claude-opus-5": {
     low: { model: "pi-claude/claude-haiku-4-5", effort: "medium" },
