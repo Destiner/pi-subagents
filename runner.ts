@@ -3,7 +3,6 @@ import {
   SessionManager,
   type AgentSession,
   type ExtensionContext,
-  type ModelRuntime,
 } from "@earendil-works/pi-coding-agent";
 
 import type { Effort, Usage } from "./types.ts";
@@ -42,69 +41,71 @@ export interface RunOptions {
 export async function runSubagent(options: RunOptions): Promise<RunResult> {
   const { ctx, prompt, signal, onProgress } = options;
 
+  // Extensions re-register model routers when the child binds. Sharing a
+  // runtime would leave the parent using those routers after child disposal.
   const { session } = await createAgentSession({
     cwd: ctx.cwd,
     model: options.model,
     thinkingLevel: options.effort,
     sessionManager: SessionManager.inMemory(ctx.cwd),
-    // Inherit the parent's providers and credentials, including any registered
-    // by extensions. A fresh runtime would only know auth.json.
-    modelRuntime: parentModelRuntime(ctx),
     excludeTools: [options.excludeTool],
   });
 
-  // Extension tools and MCP servers only exist in the child once bound.
-  await session.bindExtensions({});
-  session.setSessionName(options.name);
-
-  let text = "";
-  let toolCalls = 0;
-  let currentTool: string | undefined;
-  const usage: Usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
-  const progress = (): Progress => ({
-    effort: session.thinkingLevel,
-    text,
-    toolCalls,
-    currentTool,
-    usage,
-  });
-
-  // Report the clamped effort before any work happens.
-  onProgress(progress());
-
-  const unsubscribe = session.subscribe((event) => {
-    switch (event.type) {
-      // Reset on a new assistant message so `text` ends up holding the final
-      // one — the subagent's answer, not its running commentary.
-      case "message_start":
-        if (event.message.role === "assistant") text = "";
-        break;
-      case "message_update":
-        if (event.assistantMessageEvent.type === "text_delta") {
-          text += event.assistantMessageEvent.delta;
-        }
-        break;
-      case "tool_execution_start":
-        toolCalls += 1;
-        currentTool = event.toolName;
-        onProgress(progress());
-        break;
-      case "tool_execution_end":
-        currentTool = undefined;
-        onProgress(progress());
-        break;
-      case "message_end":
-        if (event.message.role === "assistant") {
-          addUsage(usage, event.message.usage);
-          onProgress(progress());
-        }
-        break;
-    }
-  });
-
-  const stopForwardingAbort = forwardAbort(session, signal);
+  let unsubscribe: (() => void) | undefined;
+  let stopForwardingAbort: (() => void) | undefined;
 
   try {
+    // Extension tools and MCP servers only exist in the child once bound.
+    await session.bindExtensions({});
+    session.setSessionName(options.name);
+
+    let text = "";
+    let toolCalls = 0;
+    let currentTool: string | undefined;
+    const usage: Usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+    const progress = (): Progress => ({
+      effort: session.thinkingLevel,
+      text,
+      toolCalls,
+      currentTool,
+      usage,
+    });
+
+    // Report the clamped effort before any work happens.
+    onProgress(progress());
+
+    unsubscribe = session.subscribe((event) => {
+      switch (event.type) {
+        // Reset on a new assistant message so `text` ends up holding the final
+        // one — the subagent's answer, not its running commentary.
+        case "message_start":
+          if (event.message.role === "assistant") text = "";
+          break;
+        case "message_update":
+          if (event.assistantMessageEvent.type === "text_delta") {
+            text += event.assistantMessageEvent.delta;
+          }
+          break;
+        case "tool_execution_start":
+          toolCalls += 1;
+          currentTool = event.toolName;
+          onProgress(progress());
+          break;
+        case "tool_execution_end":
+          currentTool = undefined;
+          onProgress(progress());
+          break;
+        case "message_end":
+          if (event.message.role === "assistant") {
+            addUsage(usage, event.message.usage);
+            onProgress(progress());
+          }
+          break;
+      }
+    });
+
+    stopForwardingAbort = forwardAbort(session, signal);
+
     await session.prompt(prompt);
     return {
       ...progress(),
@@ -113,14 +114,10 @@ export async function runSubagent(options: RunOptions): Promise<RunResult> {
       failure: finalTurnFailure(session),
     };
   } finally {
-    unsubscribe();
-    stopForwardingAbort();
+    unsubscribe?.();
+    stopForwardingAbort?.();
     session.dispose();
   }
-}
-
-function parentModelRuntime(ctx: ExtensionContext): ModelRuntime | undefined {
-  return (ctx.modelRegistry as unknown as { runtime?: ModelRuntime }).runtime;
 }
 
 function forwardAbort(

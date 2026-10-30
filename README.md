@@ -64,6 +64,11 @@ The subagent starts from an empty context: it sees the prompt and nothing else,
 returns one text response, and cannot ask questions. Several calls in one turn
 run concurrently.
 
+Each subagent owns a separate model runtime. It loads provider configuration,
+credentials, extensions, and model aliases through pi's normal discovery rather
+than sharing the parent's mutable registrations. Finishing or aborting one
+subagent cannot invalidate the parent's or a sibling's model routers.
+
 ## Errors
 
 All three arrive as tool errors, so the agent sees them and can adjust:
@@ -108,4 +113,7 @@ recursion guard. If the parent aborts, its subagents abort.
 Two consequences worth knowing. The subagent inherits every extension and MCP
 tool configured in your settings, so a large MCP surface makes even a `low` call
 expensive in input tokens. And it loads extensions from settings only —
-extensions passed on the command line with `-e` don't reach it.
+extensions passed on the command line with `-e` don't reach it. Providers,
+aliases, and credentials registered only in the parent's memory aren't inherited
+either; configure them through pi's normal settings, extensions, or login so each
+subagent can load them independently.
